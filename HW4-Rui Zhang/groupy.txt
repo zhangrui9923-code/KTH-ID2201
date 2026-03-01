@@ -1,0 +1,119 @@
+gms1:
+
+W1 = worker:start(w1, gms1, 1000, 10).
+timer:sleep(200).
+W2 = worker:start(w2, W1, gms1, 1000, 10).
+timer:sleep(200).
+W3 = worker:start(w3, W1, gms1, 1000, 10).
+
+W1 ! stop.
+W2 ! stop.
+W3 ! stop.
+
+
+
+
+W1 = test:more(5, gms1, 1000).
+
+
+
+
+
+gms2:
+
+W1 = worker:start(w1, gms2, 1000, 10).
+timer:sleep(200).
+W2 = worker:start(w2, W1, gms2, 1000, 10).
+timer:sleep(200).
+W3 = worker:start(w3, W1, gms2, 1000, 10).
+
+W2 ! stop.
+W3 ! stop.
+
+
+
+
+W1 = test:more(4, gms2, 1000).
+
+
+W1 = test:first(1, gms2, 1000).
+test:add(2, gms2, W1, 1000).
+test:add(3, gms2, W1, 1000).
+test:add(4, gms2, W1, 1000).
+test:add(5, gms2, W1, 1000).
+test:add(6, gms2, W1, 1000).
+
+
+
+
+gms3:
+
+W1 = worker:start(w1, gms3, 1000, 10).
+timer:sleep(200).
+W2 = worker:start(w2, W1, gms3, 1000, 10).
+timer:sleep(200).
+W3 = worker:start(w3, W1, gms3, 1000, 10).
+
+W3 ! stop.
+
+
+W1 = test:more(4, gms3, 1000).
+
+
+
+
+
+
+
+
+
+
+
+gms4:
+W1 = worker:start(w1, gms4, 1000, 10).
+timer:sleep(200).
+W2 = worker:start(w2, W1, gms4, 1000, 10).
+timer:sleep(200).
+W3 = worker:start(w3, W1, gms4, 1000, 10).
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
