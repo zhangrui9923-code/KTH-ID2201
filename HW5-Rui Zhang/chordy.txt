@@ -1,0 +1,159 @@
+node2:
+
+Node1 = node2:start(key:generate()).
+Node2 = node2:start(key:generate(), Node1).
+Keys = test:keys(100).
+test:add(Keys, Node1).
+test:check(Keys, Node1).
+
+
+基准测试
+test:benchmark(single_node_4000).
+test:benchmark(four_nodes_1000_each).
+test:benchmark(distributed_clients).
+test:benchmark(large_scale_10000).
+
+
+
+test:run_all_benchmarks().
+
+
+
+并发测试
+N1 = node2:start(key:generate()).
+N2 = node2:start(key:generate(), N1).
+
+
+%% 4个客户端，每个添加500个键
+Keys = test:concurrent_add(4, 500, N1).
+
+%% 4个客户端并发查找
+test:concurrent_check(Keys, 4, N1).
+
+
+
+
+
+
+
+
+demo:base_requirements().
+
+
+
+
+
+
+node3:
+N1 = node3:start(key:generate()).
+N2 = node3:start(key:generate(), N1).
+N3 = node3:start(key:generate(), N1).
+
+N1 ! status.
+N2 ! status.
+N3 ! status.
+
+N1 ! probe.
+
+test:add([100, 200, 300], N1).
+exit(N2, kill).
+N1 ! probe.
+test:add([400, 500], N1).
+
+
+
+
+
+
+
+test_data_loss_demo() ->
+    N1 = node3:start(key:generate()),
+    N2 = node3:start(key:generate(), N1),
+    N3 = node3:start(key:generate(), N1),
+    timer:sleep(3000),
+    
+    Keys = test:keys(30),
+    test:add(Keys, N1),
+    timer:sleep(1000),
+    
+    io:format("~n=== Distribution ===~n"),
+    N1 ! status,
+    N2 ! status,
+    N3 ! status,
+    
+    timer:sleep(500),
+    
+    io:format("~n=== Before failure ===~n"),
+    test:check(Keys, N1),
+    
+    exit(N2, kill),
+    timer:sleep(2000),
+    
+    io:format("~n=== After N2 died ===~n"),
+    test:check(Keys, N1).
+
+
+test_data_loss_demo().
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+node4:
+
+N1 = node4:start(key:generate()).
+N2 = node4:start(key:generate(), N1).
+N3 = node4:start(key:generate(), N1).
+
+Keys = test:keys(50).
+test:add(Keys, N1).
+
+N1 ! status.
+N2 ! status.
+N3 ! status.
+N1 ! probe.
+exit(N2, kill).
+test:check(Keys, N1).
+N1 ! probe.
+N1 ! status.
+N3 ! status.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
