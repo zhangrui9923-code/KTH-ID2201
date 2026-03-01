@@ -1,0 +1,43 @@
+erl -sname europe -setcookie routy -connect_all false
+
+erl -sname asia -setcookie routy -connect_all false
+
+%% 设置欧洲区域
+distributed_test:setup_region(europe).
+
+%% 广播和更新
+distributed_test:broadcast_region(europe).
+distributed_test:update_region(europe).
+
+%% 设置亚洲区域  
+distributed_test:setup_region(asia).
+
+%% 广播和更新
+distributed_test:broadcast_region(asia).
+distributed_test:update_region(asia).
+
+
+london ! {add, tokyo, {tokyo, 'asia@zr'}}.
+
+tokyo ! {add, london, {london, 'europe@zr'}}.
+
+london ! broadcast.
+
+tokyo ! broadcast.
+
+lists:foreach(fun(City) ->
+    City ! update,
+    timer:sleep(200)
+end, [stockholm, oslo, berlin, paris, london]).
+
+
+lists:foreach(fun(City) -> City ! update, timer:sleep(200) end, [tokyo, beijing, mumbai, bangkok, seoul]).
+
+distributed_test:test_connection(stockholm, tokyo).
+
+stockholm ! {send, tokyo, "Hello from Europe to Asia!"}.
+
+tokyo ! {send, stockholm, "Reply from Asia to Europe!"}.
+
+
+

@@ -1,0 +1,241 @@
+map: 这个模块实现了一个简单的有向图数据结构，用列表存储{节点, 出边列表}对。
+update函数可以添加或修改节点的出边
+reachable能查询某节点的出边
+all_nodes能列出图中所有涉及的节
+
+
+dijkstra:
+为什么entry/2返回0？
+0代表"无路径"或"不存在"
+在update/4中，任何实际的路径长度都会大于0
+这样当节点不存在时，不会进行更新操作
+
+基本数据结构
+地图（Map）：从 map 模块中得来，形如 [{Node, [Link1, Link2, ...]}, ...]
+排序列表（Sorted）：用于存储当前节点到网关的最短路径估计，结构：[{Node, Length, Gateway}, ...]，按 Length 升序排列。
+路由表（Table）：最终构建出的结构，形如 [{Node, Gateway}, ...]，表示从网关出发到某节点的路径应经过哪个网关。
+
+update(Node, N, Gateway, Sorted)
+update(Node, N, Gateway, Sorted) ->
+  CurrentLength = entry(Node, Sorted),
+  if
+    CurrentLength == 0 orelse N >= CurrentLength -> Sorted;
+    N < CurrentLength -> replace(Node, N, Gateway, Sorted)
+  end.
+仅当 N < 当前路径长度 时才更新。
+若节点不存在（CurrentLength == 0），也不更新（意味着不会新增节点，只更新已知节点）。
+
+
+iterate(Sorted, Map, Table):
+递归地应用 Dijkstra 算法的核心逻辑：
+每次取当前最短路径的节点（Node），加入结果表 Table
+通过 map:reachable 查找它的邻接节点
+尝试用当前路径+1（边权为1）更新其他节点的路径
+继续递归处理剩下的节点
+
+
+自定义排序（Erlang/OTP 26+）
+从 Erlang/OTP 26 开始，lists:sort/2 可以接受自定义比较函数：
+lists:sort(Fun, List)
+
+
+table(Gateways, Map):
+对整个图运行 Dijkstra 算法
+起点是 Gateways 中所有节点
+构建从任意网关到所有其他节点的最短路径网关表
+
+
+
+接口：
+消息发送语法：Pid ! Message
+在 Erlang 中，! 是向进程发送消息的运算符：
+Pid ! Msg
+是一种异步消息通信（不等待对方回应）。
+接收方通常会在 receive 块中处理这个消息。
+
+self() 是一个 Erlang 内置函数，表示：
+当前进程的 PID（进程标识符）
+
+hist：
+消息编号表明发的是第几条消息，编号越大就越新
+
+回答你的问题：
+"Can you create an entry for a node that will make any message look old?"
+是的！ 在new(Name)函数中，我为本地路由器Name创建了条目{Name, infinity}。由于任何实际的消息编号都小于等于infinity，所以：
+erlang% 任何来自本地路由器的消息都会被判断为旧消息
+
+routy:
+erlang:monitor(Type, Item) -> MonitorRef
+🔧 参数说明：
+Type：
+process：表示要监控的是一个进程（最常见）
+Item：
+通常是一个 Pid（进程标识）或 注册名（本地/远程进程）
+返回值 MonitorRef 是一个唯一引用，用于标识这个监视操作
+✅ 功能说明：
+启动对某个进程的监视。
+如果被监控的进程终止，当前进程将收到一条消息：
+erlang
+复制代码
+{'DOWN', MonitorRef, process, Pid, Reason}
+
+
+Unknown ->
+  io:format("~w: received unknown message ~w~n", [Name, Unknown]),
+  router(Name, N, Hist, Intf, Table, Map)
+不明消息不崩溃，打印出来并继续运行
+
+这个模块完整实现了一个：
+🔁 链路状态路由器进程模型，支持连接、状态广播、路由计算、消息转发、监控宕机、状态查询等功能。
+并且通过内部模块 intf, map, hist, dijkstra 等协作完成真实路由行为
+
+
+
+test:
+r1 ! {add, goteborg, r2}
+这条消息只让 r1（stockholm）知道 goteborg（r2）是它的邻居，但反过来并没有建立连接。
+如果你只写这一条：
+r1 ! {add, goteborg, r2}
+就会造成这种“单向连接”：
+stockholm (r1) --> goteborg (r2)
+
+
+步骤 3：广播链路状态信息
+r1 ! broadcast,
+r2 ! broadcast,
+...
+每个节点会广播其链路状态给邻居
+链路状态更新包含：节点名、消息编号、连接的邻居
+接收到新的广播后会继续转发（除非已经接收过）
+
+
+
+bonus:
+跨洲
+%% 创建网络
+distributed_test:setup_region(europe).
+distributed_test:setup_region(asia).
+distributed_test:connect_to_region(london, tokyo).
+
+%% 测试路由
+distributed_test:broadcast_region(europe).
+distributed_test:broadcast_region(asia).
+distributed_test:update_region(europe).
+distributed_test:update_region(asia).
+distributed_test:send_message(stockholm, tokyo, "Hello Asia from Europe!").
+
+%% 故障测试
+distributed_test:kill_router(london).
+distributed_test:send_message(stockholm, tokyo, "After failure - still works?").
+
+distributed_test:show_status().
+
+
+
+欧洲内部
+%% 设置小网络
+distributed_test:setup_region(europe).
+
+%% 测试
+distributed_test:broadcast_region(europe).
+distributed_test:update_region(europe).
+distributed_test:send_message(stockholm, paris, "Test message").
+
+%% 故障测试
+distributed_test:kill_router(london).
+distributed_test:broadcast_region(europe).
+distributed_test:update_region(europe).
+distributed_test:send_message(stockholm, paris, "After failure").
+
+%% 清理
+distributed_test:cleanup().
+
+
+
+
+
+1. 停止路由器 (Stop Routers)
+结果: ✅ 路由功能仍然工作
+2. 关闭Erlang节点 (Close Erlang Nodes)
+结果: ✅ 路由功能仍然工作
+3. 禁用网卡 (Disable Network Card)
+结果: ⚠️ 部分功能受影响，但网络仍可工作
+被禁用网卡的机器上的路由器变成孤岛
+其他部分的网络继续正常运行
+
+
+
+
+
+跨区域连通测试：
+分布式测试 - 多机器/多节点
+机器1 (欧洲区域)
+bash# 启动欧洲节点
+erl -sname europe -setcookie routy -connect_all false
+
+
+%% 设置欧洲区域
+distributed_test:setup_region(europe).
+
+%% 广播和更新
+distributed_test:broadcast_region(europe).
+distributed_test:update_region(europe).
+机器2 (亚洲区域)
+bash# 启动亚洲节点
+erl -sname asia -setcookie routy -connect_all false
+
+
+%% 设置亚洲区域
+distributed_test:setup_region(asia).
+
+%% 广播和更新
+distributed_test:broadcast_region(asia).
+distributed_test:update_region(asia).
+建立跨区域连接
+在欧洲节点：
+erlang%% 连接到亚洲节点的路由器
+london ! {add, tokyo, {tokyo, asia@your_hostname}}.
+在亚洲节点：
+erlang%% 连接到欧洲节点的路由器
+tokyo ! {add, london, {london, europe@your_hostname}}.
+测试跨区域路由
+在欧洲节点：
+stockholm ! broadcast.
+london ! broadcast.
+stockholm ! update.
+london ! update.
+
+%% 发送消息到亚洲
+stockholm ! {send, tokyo, "Hello from Europe to Asia!"}.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
