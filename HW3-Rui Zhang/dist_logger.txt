@@ -1,0 +1,138 @@
+% 编译
+c(dist_logger).
+
+% 基本测试
+dist_logger:test().
+
+% 并发测试
+dist_logger:concurrent_test().
+
+% 手动使用
+Logger = dist_logger:start([node1, node2]).
+Logger ! {log, node1, erlang:timestamp(), "Hello World"}.
+dist_logger:stop(Logger).
+
+
+
+worker:
+% 简单测试（2个workers）
+worker:simple_test().
+
+% 完整测试（3个workers）
+worker:test().
+
+% 演示消息乱序
+worker:disorder_test().
+
+
+logger:接受并打印消息
+worker：随机发消息并发给logger
+
+
+
+test:
+test:full_experiment_suite().
+% 5. 原始接口测试
+test:run(1000, 200).
+
+
+
+test:run(1000, 200) 这个测试是用来观察分布式系统中消息顺序问题的核心实验。
+🔍 参数含义：
+Sleep = 1000 (毫秒)
+Worker发送消息的间隔时间
+每个worker会等待0-1000ms的随机时间后发送一条消息
+1000ms = 相对较慢的发送频率，消息不会太密集
+
+Jitter = 200 (毫秒)
+发送消息和记录日志之间的随机延迟
+Worker发送消息给peer后，会等待0-200ms才向logger发送日志
+这是造成消息乱序的关键因素！
+
+模拟网络延迟
+在真实分布式系统中，网络延迟是不可预测的
+Jitter模拟了这种延迟差异
+200ms的jitter是一个中等程度的延迟
+
+
+lamport:
+基础操作：
+
+zero() 提供初始时间值0
+inc(Name, T) 实现时间递增，返回T+1
+merge(Ti, Tj) 实现Lamport合并规则，取两个时间戳的最大值
+leq(Ti, Tj) 提供时间比较功能
+
+时钟管理：
+
+clock(Nodes) 创建映射表跟踪每个节点的最新时间戳
+update(Node, Time, Clock) 更新特定节点的时间记录
+safe(Time, Clock) 判断消息是否可安全输出，基于"时间戳小于等于所有节点最小时间戳"的安全条件
+
+
+最终日志的意义
+Lamport系统的日志输出反映：
+逻辑因果顺序而非物理时间顺序
+每个时间戳代表系统中的一个逻辑时刻
+相同时间戳的事件可能是并发的
+时间戳的严格递增保证了因果关系的正确性
+事件是否按显示顺序发生：
+物理上，事件可能以不同顺序发生，但逻辑上，日志展示的是唯一一致的因果顺序。这正是Lamport时钟的核心价值：提供全局一致的事件排序。
+
+
+使用lamport情况下
+Holdback队列大小分析
+从测试观察到：
+无Jitter情况：队列几乎为空，消息立即安全输出
+高Jitter情况：队列中保持2-5条消息等待
+影响队列大小的因素：
+Jitter值：延迟越大，队列越长
+发送频率：消息密集时队列增长
+节点数量：更多节点增加等待时间
+网络延迟模式：不均匀延迟导致更大队列
+理论最大值：在最坏情况下，队列可能包含每个节点的一条最新消息，因此最大队列长度约等于节点数量。但在实际测试中，由于消息的随机性和Lamport时钟的收敛特性，队列通常远小于这个上限。
+基于测试，典型队列大小在1-10条消息之间，这证明了holdback机制的效率。
+
+
+测试：
+lamport_test:compare(1000, 200).
+
+lamport_test:run(1000, 100).
+
+
+
+jitter的影响
+test:medium_jitter_test().
+test:no_jitter_test().
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
